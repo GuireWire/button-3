@@ -22,7 +22,8 @@
         }
 
         .framer-button {
-            background-color: rgb(250, 250, 250);
+            background-color: rgb(17, 17, 17);
+            /* Inverted from 250,250,250 */
             border-radius: 50px;
             opacity: 1;
             cursor: pointer;
@@ -31,7 +32,8 @@
             font-family: "Inter", "Inter Placeholder", sans-serif;
             font-size: 14px;
             font-weight: 600;
-            color: rgb(17, 17, 17);
+            color: rgb(250, 250, 250);
+            /* Inverted from 17,17,17 */
             text-align: center;
             display: flex;
             align-items: center;
@@ -49,13 +51,16 @@
         }
 
         .success {
-            background-color: #ecfdf5;
-            color: #059669;
+            background-color: #059669;
+            /* Changed from #ecfdf5 for better contrast */
+            color: #ecfdf5;
+            /* Inverted from original success color */
         }
 
         .checkmark {
             display: none;
-            color: #059669;
+            color: #ecfdf5;
+            /* Changed to match new success text color */
             font-size: 18px;
         }
     </style>
@@ -64,7 +69,7 @@
 <body>
     <button class="framer-button" id="buyButton" onclick="handleBuyCoffee()">
         <div class="framer-container">
-            <p class="framer-text" id="buttonText">Buy 2 Coffees</p>
+            <p class="framer-text" id="buttonText">Buy 3 Coffees</p>
             <span class="checkmark" id="checkmark">✓</span>
         </div>
     </button>
@@ -101,7 +106,7 @@
         ];
 
         const zkSyncSepoliaConfig = {
-            chainId: '0x12C', // 300 in hex
+            chainId: '0x12C',
             chainName: 'zkSync Sepolia',
             nativeCurrency: {
                 name: 'ETH',
@@ -130,22 +135,18 @@
             }
 
             try {
-                // Request account access
                 const accounts = await window.ethereum.request({
                     method: "eth_requestAccounts"
                 });
 
-                // Check network
                 const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                if (chainId !== '0x12C') { // zkSync Sepolia
+                if (chainId !== '0x12C') {
                     try {
-                        // First try to switch to the network
                         await window.ethereum.request({
                             method: 'wallet_switchEthereumChain',
                             params: [{ chainId: '0x12C' }],
                         });
                     } catch (switchError) {
-                        // If network doesn't exist, add it
                         if (switchError.code === 4902) {
                             try {
                                 await window.ethereum.request({
@@ -165,44 +166,39 @@
                     }
                 }
 
-                // Create ethers provider and contract instance
                 const provider = new ethers.providers.Web3Provider(window.ethereum);
                 const signer = provider.getSigner();
                 const contract = new ethers.Contract(contractAddress, contractABI, signer);
 
-                // Get ETH price from Chainlink
                 const priceFeed = new ethers.Contract(PRICE_FEED_ADDRESS, PRICE_FEED_ABI, provider);
                 const [roundId, answer, startedAt, updatedAt, answeredInRound] = await priceFeed.latestRoundData();
                 const ethPrice = answer;
                 console.log("ETH Price from Chainlink:", ethPrice.toString());
 
-                // Calculate ETH amount needed for $10 (scaled for 8 decimals from Chainlink)
-                const TEN_DOLLARS = ethers.BigNumber.from(10).mul(ethers.BigNumber.from(10).pow(8));
-                const ethToSend = TEN_DOLLARS.mul(ethers.utils.parseEther("1")).div(ethPrice);
+                const FIFTEEN_DOLLARS = ethers.BigNumber.from(15).mul(ethers.BigNumber.from(10).pow(8));
+                const ethToSend = FIFTEEN_DOLLARS.mul(ethers.utils.parseEther("1")).div(ethPrice);
 
+                console.log("$15 in Wei:", FIFTEEN_DOLLARS.toString());
                 console.log("ETH to send:", ethers.utils.formatEther(ethToSend));
 
                 buttonText.textContent = "Confirm in MetaMask...";
 
-                // Send transaction
                 const tx = await contract.fund({
-                    value: ethToSend
+                    value: ethToSend,
+                    gasLimit: 100000
                 });
 
                 buttonText.textContent = "Processing...";
 
-                // Wait for transaction to be mined
                 await tx.wait();
 
-                // Update button to show success state
                 button.classList.add('success');
                 buttonText.textContent = "Thank You!";
                 checkmark.style.display = 'inline-block';
 
-                // Reset button after 5 seconds
                 setTimeout(() => {
                     button.classList.remove('success');
-                    buttonText.textContent = "Buy 2 Coffees";
+                    buttonText.textContent = "Buy 3 Coffees";
                     checkmark.style.display = 'none';
                     button.disabled = false;
                 }, 5000);
@@ -210,12 +206,11 @@
             } catch (error) {
                 console.error("Error:", error);
                 alert("Transaction failed: " + error.message);
-                buttonText.textContent = "Buy 2 Coffees";
+                buttonText.textContent = "Buy 3 Coffees";
                 button.disabled = false;
             }
         }
 
-        // Listen for network changes
         if (window.ethereum) {
             window.ethereum.on('chainChanged', (chainId) => {
                 if (chainId !== '0x12C') {
