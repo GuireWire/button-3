@@ -22,7 +22,7 @@
         }
 
         .framer-button {
-            background-color: rgb(17, 17, 17);
+            background-color: rgb(250, 250, 250);
             /* Inverted from 250,250,250 */
             border-radius: 50px;
             opacity: 1;
@@ -32,7 +32,7 @@
             font-family: "Inter", "Inter Placeholder", sans-serif;
             font-size: 14px;
             font-weight: 600;
-            color: rgb(250, 250, 250);
+            color: rgb(17, 17, 17);
             /* Inverted from 17,17,17 */
             text-align: center;
             display: flex;
@@ -175,10 +175,10 @@
                 const ethPrice = answer;
                 console.log("ETH Price from Chainlink:", ethPrice.toString());
 
-                const FIFTEEN_DOLLARS = ethers.BigNumber.from(15).mul(ethers.BigNumber.from(10).pow(8));
-                const ethToSend = FIFTEEN_DOLLARS.mul(ethers.utils.parseEther("1")).div(ethPrice);
+                const TEN_DOLLARS = ethers.BigNumber.from(1000).mul(ethers.BigNumber.from(10).pow(6));
+                const ethToSend = TEN_DOLLARS.mul(ethers.utils.parseEther("1")).div(ethPrice);
 
-                console.log("$15 in Wei:", FIFTEEN_DOLLARS.toString());
+                console.log("$10 in Wei:", TEN_DOLLARS.toString());
                 console.log("ETH to send:", ethers.utils.formatEther(ethToSend));
 
                 buttonText.textContent = "Confirm in MetaMask...";
