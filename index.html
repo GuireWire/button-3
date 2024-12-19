@@ -22,8 +22,7 @@
         }
 
         .framer-button {
-            background-color: rgb(250, 250, 250);
-            /* Inverted from 250,250,250 */
+            background-color: rgb(17, 17, 17);
             border-radius: 50px;
             opacity: 1;
             cursor: pointer;
@@ -32,8 +31,7 @@
             font-family: "Inter", "Inter Placeholder", sans-serif;
             font-size: 14px;
             font-weight: 600;
-            color: rgb(17, 17, 17);
-            /* Inverted from 17,17,17 */
+            color: rgb(250, 250, 250);
             text-align: center;
             display: flex;
             align-items: center;
@@ -52,15 +50,12 @@
 
         .success {
             background-color: #059669;
-            /* Changed from #ecfdf5 for better contrast */
             color: #ecfdf5;
-            /* Inverted from original success color */
         }
 
         .checkmark {
             display: none;
             color: #ecfdf5;
-            /* Changed to match new success text color */
             font-size: 18px;
         }
     </style>
@@ -79,15 +74,31 @@
             return typeof ethers !== 'undefined';
         }
 
-        // Contract details
         const contractAddress = "0xFc2B6Ab7a9f6CC3Bc671Eed34d0d40A4AAb78958";
         const contractABI = [
-            { "stateMutability": "payable", "type": "function", "name": "fund", "inputs": [], "outputs": [] },
-            { "stateMutability": "view", "type": "function", "name": "get_eth_to_usd_rate", "inputs": [{ "name": "eth_amount", "type": "uint256" }], "outputs": [{ "name": "", "type": "uint256" }] },
-            { "stateMutability": "view", "type": "function", "name": "MINIMUM_USD", "inputs": [], "outputs": [{ "name": "", "type": "uint256" }] }
+            {
+                "stateMutability": "payable",
+                "type": "function",
+                "name": "fund",
+                "inputs": [],
+                "outputs": []
+            },
+            {
+                "stateMutability": "view",
+                "type": "function",
+                "name": "get_eth_to_usd_rate",
+                "inputs": [{ "name": "eth_amount", "type": "uint256" }],
+                "outputs": [{ "name": "", "type": "uint256" }]
+            },
+            {
+                "stateMutability": "view",
+                "type": "function",
+                "name": "MINIMUM_USD",
+                "inputs": [],
+                "outputs": [{ "name": "", "type": "uint256" }]
+            }
         ];
 
-        // Price Feed details
         const PRICE_FEED_ADDRESS = "0xfEefF7c3fB57d18C5C6Cdd71e45D2D0b4F9377bF";
         const PRICE_FEED_ABI = [
             {
@@ -139,7 +150,10 @@
                     method: "eth_requestAccounts"
                 });
 
-                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                const chainId = await window.ethereum.request({
+                    method: 'eth_chainId'
+                });
+
                 if (chainId !== '0x12C') {
                     try {
                         await window.ethereum.request({
@@ -169,27 +183,39 @@
                 const provider = new ethers.providers.Web3Provider(window.ethereum);
                 const signer = provider.getSigner();
                 const contract = new ethers.Contract(contractAddress, contractABI, signer);
-
                 const priceFeed = new ethers.Contract(PRICE_FEED_ADDRESS, PRICE_FEED_ABI, provider);
+
                 const [roundId, answer, startedAt, updatedAt, answeredInRound] = await priceFeed.latestRoundData();
                 const ethPrice = answer;
                 console.log("ETH Price from Chainlink:", ethPrice.toString());
 
                 const TEN_DOLLARS = ethers.BigNumber.from(1000).mul(ethers.BigNumber.from(10).pow(6));
                 const ethToSend = TEN_DOLLARS.mul(ethers.utils.parseEther("1")).div(ethPrice);
-
                 console.log("$10 in Wei:", TEN_DOLLARS.toString());
                 console.log("ETH to send:", ethers.utils.formatEther(ethToSend));
+
+                // Gas estimation
+                const gasPrice = await provider.getGasPrice();
+                const gasLimit = await contract.estimateGas.fund({ value: ethToSend });
+                const gasCost = gasPrice.mul(gasLimit);
+
+                // Check user balance
+                const userBalance = await provider.getBalance(accounts[0]);
+                if (userBalance.lt(ethToSend.add(gasCost))) {
+                    alert("Insufficient funds to cover transaction amount plus gas fees");
+                    button.disabled = false;
+                    return;
+                }
 
                 buttonText.textContent = "Confirm in MetaMask...";
 
                 const tx = await contract.fund({
                     value: ethToSend,
-                    gasLimit: 100000
+                    gasLimit: gasLimit,
+                    gasPrice: gasPrice
                 });
 
                 buttonText.textContent = "Processing...";
-
                 await tx.wait();
 
                 button.classList.add('success');
