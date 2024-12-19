@@ -64,7 +64,7 @@
 <body>
     <button class="framer-button" id="buyButton" onclick="handleBuyCoffee()">
         <div class="framer-container">
-            <p class="framer-text" id="buttonText">Buy 1 Coffee</p>
+            <p class="framer-text" id="buttonText">Buy 2 Coffees</p>
             <span class="checkmark" id="checkmark">✓</span>
         </div>
     </button>
@@ -80,6 +80,24 @@
             { "stateMutability": "payable", "type": "function", "name": "fund", "inputs": [], "outputs": [] },
             { "stateMutability": "view", "type": "function", "name": "get_eth_to_usd_rate", "inputs": [{ "name": "eth_amount", "type": "uint256" }], "outputs": [{ "name": "", "type": "uint256" }] },
             { "stateMutability": "view", "type": "function", "name": "MINIMUM_USD", "inputs": [], "outputs": [{ "name": "", "type": "uint256" }] }
+        ];
+
+        // Price Feed details
+        const PRICE_FEED_ADDRESS = "0xfEefF7c3fB57d18C5C6Cdd71e45D2D0b4F9377bF";
+        const PRICE_FEED_ABI = [
+            {
+                "inputs": [],
+                "name": "latestRoundData",
+                "outputs": [
+                    { "internalType": "uint80", "name": "roundId", "type": "uint80" },
+                    { "internalType": "int256", "name": "answer", "type": "int256" },
+                    { "internalType": "uint256", "name": "startedAt", "type": "uint256" },
+                    { "internalType": "uint256", "name": "updatedAt", "type": "uint256" },
+                    { "internalType": "uint80", "name": "answeredInRound", "type": "uint80" }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            }
         ];
 
         const zkSyncSepoliaConfig = {
@@ -152,16 +170,17 @@
                 const signer = provider.getSigner();
                 const contract = new ethers.Contract(contractAddress, contractABI, signer);
 
-                // Get minimum USD amount ($5 worth of ETH)
-                const minUsdAmount = await contract.MINIMUM_USD();
+                // Get ETH price from Chainlink
+                const priceFeed = new ethers.Contract(PRICE_FEED_ADDRESS, PRICE_FEED_ABI, provider);
+                const [roundId, answer, startedAt, updatedAt, answeredInRound] = await priceFeed.latestRoundData();
+                const ethPrice = answer;
+                console.log("ETH Price from Chainlink:", ethPrice.toString());
 
-                // Calculate ETH amount needed for $5
-                // We get the price of 1 ETH first
-                const oneEthInWei = ethers.utils.parseEther("1");
-                const ethPriceInUsd = await contract.get_eth_to_usd_rate(oneEthInWei);
+                // Calculate ETH amount needed for $10 (scaled for 8 decimals from Chainlink)
+                const TEN_DOLLARS = ethers.BigNumber.from(10).mul(ethers.BigNumber.from(10).pow(8));
+                const ethToSend = TEN_DOLLARS.mul(ethers.utils.parseEther("1")).div(ethPrice);
 
-                // Calculate how much ETH we need to send for $5
-                const ethToSend = minUsdAmount.mul(oneEthInWei).div(ethPriceInUsd);
+                console.log("ETH to send:", ethers.utils.formatEther(ethToSend));
 
                 buttonText.textContent = "Confirm in MetaMask...";
 
@@ -183,7 +202,7 @@
                 // Reset button after 5 seconds
                 setTimeout(() => {
                     button.classList.remove('success');
-                    buttonText.textContent = "Buy 1 Coffee";
+                    buttonText.textContent = "Buy 2 Coffees";
                     checkmark.style.display = 'none';
                     button.disabled = false;
                 }, 5000);
@@ -191,7 +210,7 @@
             } catch (error) {
                 console.error("Error:", error);
                 alert("Transaction failed: " + error.message);
-                buttonText.textContent = "Buy 1 Coffee";
+                buttonText.textContent = "Buy 2 Coffees";
                 button.disabled = false;
             }
         }
