@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link href="https://api.fontshare.com/v2/css?f[]=inter@600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+        @font-face {
+            font-family: 'Inter';
+            font-weight: 600;
+            font-display: swap;
+            src: url('https://framerusercontent.com/assets/Inter-SemiBold.ttf') format('truetype');
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .framer-button {
+            background-color: rgb(250, 250, 250);
+            border-radius: 50px;
+            opacity: 1;
+            cursor: pointer;
+            padding: 12px 24px;
+            border: none;
+            font-family: "Inter", "Inter Placeholder", sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: rgb(17, 17, 17);
+            text-align: center;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.3s ease;
+        }
+
+        .framer-text {
+            margin: 0;
+        }
+
+        .framer-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .success {
+            background-color: #ecfdf5;
+            color: #059669;
+        }
+
+        .checkmark {
+            display: none;
+            color: #059669;
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body>
+    <button class="framer-button" id="buyButton" onclick="handleBuyCoffee()">
+        <div class="framer-container">
+            <p class="framer-text" id="buttonText">Buy 1 Coffee</p>
+            <span class="checkmark" id="checkmark">✓</span>
+        </div>
+    </button>
+
+    <script>
+        function checkEthers() {
+            return typeof ethers !== 'undefined';
+        }
+
+        // Contract details
+        const contractAddress = "0xFc2B6Ab7a9f6CC3Bc671Eed34d0d40A4AAb78958";
+        const contractABI = [
+            { "stateMutability": "payable", "type": "function", "name": "fund", "inputs": [], "outputs": [] },
+            { "stateMutability": "view", "type": "function", "name": "get_eth_to_usd_rate", "inputs": [{ "name": "eth_amount", "type": "uint256" }], "outputs": [{ "name": "", "type": "uint256" }] },
+            { "stateMutability": "view", "type": "function", "name": "MINIMUM_USD", "inputs": [], "outputs": [{ "name": "", "type": "uint256" }] }
+        ];
+
+        const zkSyncSepoliaConfig = {
+            chainId: '0x12C', // 300 in hex
+            chainName: 'zkSync Sepolia',
+            nativeCurrency: {
+                name: 'ETH',
+                symbol: 'ETH',
+                decimals: 18
+            },
+            rpcUrls: ['https://zksync-sepolia.g.alchemy.com/v2/jk91bI9peWH_OI9ADpk2xkyP7VwtRFV-'],
+            blockExplorerUrls: ['https://explorer.sepolia.era.zksync.dev']
+        };
+
+        async function handleBuyCoffee() {
+            if (!checkEthers()) {
+                alert('Please wait for the page to fully load and try again.');
+                return;
+            }
+
+            const button = document.getElementById('buyButton');
+            const buttonText = document.getElementById('buttonText');
+            const checkmark = document.getElementById('checkmark');
+            button.disabled = true;
+
+            if (typeof window.ethereum === "undefined") {
+                alert("Please install MetaMask!");
+                button.disabled = false;
+                return;
+            }
+
+            try {
+                // Request account access
+                const accounts = await window.ethereum.request({
+                    method: "eth_requestAccounts"
+                });
+
+                // Check network
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                if (chainId !== '0x12C') { // zkSync Sepolia
+                    try {
+                        // First try to switch to the network
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x12C' }],
+                        });
+                    } catch (switchError) {
+                        // If network doesn't exist, add it
+                        if (switchError.code === 4902) {
+                            try {
+                                await window.ethereum.request({
+                                    method: 'wallet_addEthereumChain',
+                                    params: [zkSyncSepoliaConfig],
+                                });
+                            } catch (addError) {
+                                alert("Could not add zkSync Sepolia network");
+                                button.disabled = false;
+                                return;
+                            }
+                        } else {
+                            alert("Please switch to zkSync Sepolia network");
+                            button.disabled = false;
+                            return;
+                        }
+                    }
+                }
+
+                // Create ethers provider and contract instance
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                const contract = new ethers.Contract(contractAddress, contractABI, signer);
+
+                // Get minimum USD amount ($5 worth of ETH)
+                const minUsdAmount = await contract.MINIMUM_USD();
+
+                // Calculate ETH amount needed for $5
+                // We get the price of 1 ETH first
+                const oneEthInWei = ethers.utils.parseEther("1");
+                const ethPriceInUsd = await contract.get_eth_to_usd_rate(oneEthInWei);
+
+                // Calculate how much ETH we need to send for $5
+                const ethToSend = minUsdAmount.mul(oneEthInWei).div(ethPriceInUsd);
+
+                buttonText.textContent = "Confirm in MetaMask...";
+
+                // Send transaction
+                const tx = await contract.fund({
+                    value: ethToSend
+                });
+
+                buttonText.textContent = "Processing...";
+
+                // Wait for transaction to be mined
+                await tx.wait();
+
+                // Update button to show success state
+                button.classList.add('success');
+                buttonText.textContent = "Thank You!";
+                checkmark.style.display = 'inline-block';
+
+                // Reset button after 5 seconds
+                setTimeout(() => {
+                    button.classList.remove('success');
+                    buttonText.textContent = "Buy 1 Coffee";
+                    checkmark.style.display = 'none';
+                    button.disabled = false;
+                }, 5000);
+
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Transaction failed: " + error.message);
+                buttonText.textContent = "Buy 1 Coffee";
+                button.disabled = false;
+            }
+        }
+
+        // Listen for network changes
+        if (window.ethereum) {
+            window.ethereum.on('chainChanged', (chainId) => {
+                if (chainId !== '0x12C') {
+                    document.getElementById('buyButton').disabled = true;
+                    alert("Please switch to zkSync Sepolia network");
+                } else {
+                    document.getElementById('buyButton').disabled = false;
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
